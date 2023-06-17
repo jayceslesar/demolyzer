@@ -11,6 +11,10 @@ from plotly.subplots import make_subplots
 from demolyzer.demo_utils import demo_to_dataframe
 
 
+def _normalize_angle(angle: int | float) -> float:
+    return (angle + 180) % 360 - 180
+
+
 class DemoAnalyzer:
     def __init__(self, demo_in_path: str, persist: bool = True):
         """Initialize an instance of a DemoAnalyzer.
@@ -112,7 +116,7 @@ class DemoAnalyzer:
             showlegend = i == 1
             player_df = self.df[self.df["players_info.steamId"] == steam_id]
 
-            delta_view_angle = player_df["players_view_angle"].diff()[1:]
+            delta_view_angle = (player_df["players_view_angle"].diff()[1:]).apply(_normalize_angle)
             fig.add_trace(
                 go.Scatter(x=player_df["tick"][1:], y=delta_view_angle, name=steam_id, marker_color=colors[i - 1]),
                 row=i,
