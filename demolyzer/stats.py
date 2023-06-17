@@ -73,7 +73,7 @@ class DemoAnalyzer:
 
         return stats
 
-    def movement_plot(self) -> None:
+    def delta_mouse_movement(self) -> None:
         """Sum delta pitch angle and delta view angle to visualize change in aim over ticks."""
         players = self.players.items()
         num_of_players = len(players)
@@ -89,7 +89,23 @@ class DemoAnalyzer:
 
             fig.add_trace(go.Scatter(x=ticks, y=delta_sum, name=steam_id), row=i, col=1)
 
-        fig.update_layout(title="Delta Movement Over Time for Each Player")
+        fig.update_layout(title="Delta Mouse Movement Over Time for Each Player")
+        fig.show()
+
+    def viewangle_delta_plot(self) -> None:
+        players = self.players.items()
+        num_of_players = len(players)
+
+        fig = make_subplots(rows=num_of_players, cols=1, shared_xaxes=True)
+
+        for i, (steam_id, name) in enumerate(players, start=1):
+            player_df = self.df[self.df["players_info.steamId"] == steam_id]
+            delta_position = (player_df["players_position.x"].diff()[1:] ** 2 + player_df["players_position.y"].diff()[1:] ** 2) ** 0.5
+            delta_view = player_df["players_view_angle"].diff()[1:]
+
+            fig.add_trace(go.Scatter(x=delta_position, y=delta_view, name=steam_id, mode="markers"), row=i, col=1)
+
+        fig.update_layout(title="Delta Position vs Delta Viewangle for Each Player")
         fig.show()
 
     def __str__(self) -> str:
