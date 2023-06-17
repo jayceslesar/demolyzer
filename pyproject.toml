@@ -37,6 +37,8 @@ dev = [
 
 [tool.isort]
 profile = "black"
+src_paths = ["demolyzer", "tests"]
 
 [tool.black]
 line-length = 120
+src_paths = ["demolyzer", "tests"]
