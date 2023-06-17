@@ -73,7 +73,7 @@ def to_dataframe(demo_data: list[dict[str, Any]]) -> pd.DataFrame:
     return df
 
 
-def demo_to_dataframe(demo_in_path: str, tick_frequency: int = 100) -> pd.Dataframe:
+def demo_to_dataframe(demo_in_path: str, tick_frequency: int = 100) -> pd.DataFrame:
     """Turn a demo file into a sparse wide csv file.
 
     Args:
