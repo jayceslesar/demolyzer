@@ -3,6 +3,9 @@
 import os
 
 import pandas as pd
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
 
 from demolyzer.demo_utils import demo_to_dataframe
 
@@ -69,6 +72,25 @@ class DemoAnalyzer:
             }
 
         return stats
+
+    def movement_plot(self) -> None:
+        """Sum delta pitch angle and delta view angle to visualize change in aim over ticks."""
+        players = self.players.items()
+        num_of_players = len(players)
+
+        fig = make_subplots(rows=num_of_players, cols=1, shared_xaxes=True)
+
+        for i, (steam_id, name) in enumerate(players, start=1):
+            player_df = self.df[self.df["players_info.steamId"] == steam_id]
+            delta_pitch = player_df["players_pitch_angle"].diff()[1:]
+            delta_view = player_df["players_view_angle"].diff()[1:]
+            delta_sum = delta_pitch + delta_view
+            ticks = player_df["tick"]
+
+            fig.add_trace(go.Scatter(x=ticks, y=delta_sum, name=steam_id), row=i, col=1)
+
+        fig.update_layout(title="Delta Movement Over Time for Each Player")
+        fig.show()
 
     def __str__(self) -> str:
         return f"{self.demo_file} with {self.num_players} players and duration of {self.duration}"
