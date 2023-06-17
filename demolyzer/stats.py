@@ -1,6 +1,8 @@
 """Module for Computing Aggregates of the Converted DataFrame of demo File."""
 
 import os
+from math import atan2, degrees
+import random
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -94,18 +96,28 @@ class DemoAnalyzer:
 
     def viewangle_delta_plot(self) -> None:
         players = self.players.items()
-        num_of_players = len(players)
 
-        fig = make_subplots(rows=num_of_players, cols=1, shared_xaxes=True)
+        colors = [f'rgb({random.randint(0, 255)}, {random.randint(0, 255)}, {random.randint(0, 255)})' for _ in range(len(players))]
+
+        fig = make_subplots(rows=len(players), cols=3, subplot_titles=("View Angle Delta", "Pitch Angle Delta", "Angle of Movement"))
 
         for i, (steam_id, name) in enumerate(players, start=1):
+            showlegend = i == 1
             player_df = self.df[self.df["players_info.steamId"] == steam_id]
-            delta_position = (player_df["players_position.x"].diff()[1:] ** 2 + player_df["players_position.y"].diff()[1:] ** 2) ** 0.5
-            delta_view = player_df["players_view_angle"].diff()[1:]
 
-            fig.add_trace(go.Scatter(x=delta_position, y=delta_view, name=steam_id, mode="markers"), row=i, col=1)
+            delta_view_angle = player_df["players_view_angle"].diff()[1:]
+            fig.add_trace(go.Scatter(x=player_df["tick"][1:], y=delta_view_angle, name=steam_id, marker_color=colors[i-1]), row=i, col=1)
 
-        fig.update_layout(title="Delta Position vs Delta Viewangle for Each Player")
+            delta_pitch_angle = player_df["players_pitch_angle"].diff()[1:]
+            fig.add_trace(go.Scatter(x=player_df["tick"][1:], y=delta_pitch_angle, name=steam_id, marker_color=colors[i-1], showlegend=False), row=i, col=2)
+
+            delta_x = player_df["players_position.x"].diff()[1:]
+            delta_y = player_df["players_position.y"].diff()[1:]
+            angle_of_movement = [degrees(atan2(dy, dx)) for dx, dy in zip(delta_x, delta_y)]
+            fig.add_trace(go.Scatter(x=player_df["tick"][1:], y=angle_of_movement, name=steam_id, marker_color=colors[i-1], showlegend=False), row=i, col=3)
+
+        fig.update_layout(title="View Angle Delta, Pitch Angle Delta and Angle of Movement over Time for Each Player")
+        fig.update_xaxes(title="Time")
         fig.show()
 
     def __str__(self) -> str:
