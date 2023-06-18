@@ -94,7 +94,7 @@ class DemoAnalyzer:
         return stats
 
     def get_event_dataframe(self, ticks_before: int = 100, ticks_after: int = 100) -> pd.DataFrame():
-        """Return a list of dataframes that each contains events around a shooting or damage event.
+        """Return a dataframe that each contains events around a shooting or damage event.
 
         Args:
             ticks_before: ticks before event to keep in that event.
