@@ -5,8 +5,6 @@ import random
 from math import atan2, degrees
 
 import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 from demolyzer.demo_utils import demo_to_dataframe
 
@@ -15,19 +13,36 @@ def _normalize_angle(angle: int | float) -> float:
     return (angle + 180) % 360 - 180
 
 
+def replace_player_ids_with_steamid(df: pd.DataFrame) -> pd.DataFrame:
+    """Replace player IDs in the dataframe with their corresponding Steam IDs."""
+
+    steamid_mapping = (
+        df.drop_duplicates("players_info.userId", keep="last")
+        .set_index("players_info.userId")["players_info.steamId"]
+        .to_dict()
+    )
+
+    df["kills_assister_id"] = df["kills_assister_id"].map(steamid_mapping).fillna(df["kills_assister_id"])
+    df["kills_attacker_id"] = df["kills_attacker_id"].map(steamid_mapping).fillna(df["kills_attacker_id"])
+    df["kills_victim_id"] = df["kills_victim_id"].map(steamid_mapping).fillna(df["kills_victim_id"])
+
+    return df
+
+
 class DemoAnalyzer:
-    def __init__(self, demo_in_path: str, persist: bool = True):
+    def __init__(self, demo_in_path: str, persist: bool = True, tick_frequency: int = 100):
         """Initialize an instance of a DemoAnalyzer.
 
         Args:
             demo_in_path: Path to demo file.
             persist: Persist converted demo as a csv as to not re-convert. Defaults to True.
+            tick_frequency: tick frequency arg passed into demoreel. Defaults to 100.
         """
         csv_name = f"{os.path.splitext(demo_in_path)[0]}.csv"
         if persist and os.path.exists(csv_name):
             self.df = pd.read_csv(csv_name)
         else:
-            self.df = demo_to_dataframe(demo_in_path)
+            self.df = demo_to_dataframe(demo_in_path, tick_frequency)
             if persist:
                 self.df.to_csv(csv_name, index=False)
 
@@ -78,82 +93,48 @@ class DemoAnalyzer:
 
         return stats
 
-    def delta_mouse_movement(self) -> None:
-        """Sum delta pitch angle and delta view angle to visualize change in aim over ticks."""
-        players = self.players.items()
-        num_of_players = len(players)
+    def get_event_dataframe(self, ticks_before: int = 100, ticks_after: int = 100) -> pd.DataFrame():
+        """Return a list of dataframes that each contains events around a shooting or damage event.
 
-        fig = make_subplots(rows=num_of_players, cols=1, shared_xaxes=True)
+        Args:
+            ticks_before: ticks before event to keep in that event.
+            ticks_after: ticks after event to keep in that event.
 
-        for i, (steam_id, name) in enumerate(players, start=1):
-            player_df = self.df[self.df["players_info.steamId"] == steam_id]
-            delta_pitch = player_df["players_pitch_angle"].diff()[1:]
-            delta_view = player_df["players_view_angle"].diff()[1:]
-            delta_sum = delta_pitch + delta_view
-            ticks = player_df["tick"]
+        Returns:
+            Event dataframe with new event_id column for an entire event involving each player shooting another.
+        """
 
-            fig.add_trace(go.Scatter(x=ticks, y=delta_sum, name=steam_id), row=i, col=1)
+        df = replace_player_ids_with_steamid(self.df.copy())
+        unique_combinations = df[["kills_attacker_id", "kills_victim_id"]].drop_duplicates().dropna()
 
-        fig.update_layout(title="Delta Mouse Movement Over Time for Each Player")
-        fig.show()
+        event_dataframes = []
+        event_id = 0
+        for _, row in unique_combinations.iterrows():
+            attacker_steamId = row["kills_attacker_id"]
+            victim_steamId = row["kills_victim_id"]
+            filtered_df = df[(df["kills_attacker_id"] == attacker_steamId) | (df["kills_victim_id"] == victim_steamId)]
 
-    def viewangle_delta_plot(self) -> None:
-        players = self.players.items()
+            shooting_events = filtered_df[
+                (filtered_df["kills_attacker_id"] == attacker_steamId)
+                & (filtered_df["kills_victim_id"] == victim_steamId)
+            ].copy()
 
-        colors = [
-            f"rgb({random.randint(0, 255)}, {random.randint(0, 255)}, {random.randint(0, 255)})"
-            for _ in range(len(players))
-        ]
+            for _, shooting_event in shooting_events.iterrows():
+                shooting_tick = shooting_event["tick"]
+                start_tick = shooting_tick - ticks_before
+                end_tick = shooting_tick + ticks_after
 
-        fig = make_subplots(
-            rows=len(players),
-            cols=3,
-            subplot_titles=("View Angle Delta", "Pitch Angle Delta", "Angle of Movement"),
-            shared_xaxes=True,
-        )
+                event_df = df[
+                    (df["tick"] >= start_tick)
+                    & (df["tick"] <= end_tick)
+                    & (df["players_info.steamId"] == attacker_steamId)
+                ].copy()
+                event_df["event_id"] = event_id
+                event_dataframes.append(event_df)
+                event_id += 1
 
-        for i, (steam_id, name) in enumerate(players, start=1):
-            showlegend = i == 1
-            player_df = self.df[self.df["players_info.steamId"] == steam_id]
-
-            delta_view_angle = (player_df["players_view_angle"].diff()[1:]).apply(_normalize_angle)
-            fig.add_trace(
-                go.Scatter(x=player_df["tick"][1:], y=delta_view_angle, name=steam_id, marker_color=colors[i - 1]),
-                row=i,
-                col=1,
-            )
-
-            delta_pitch_angle = player_df["players_pitch_angle"].diff()[1:]
-            fig.add_trace(
-                go.Scatter(
-                    x=player_df["tick"][1:],
-                    y=delta_pitch_angle,
-                    name=steam_id,
-                    marker_color=colors[i - 1],
-                    showlegend=False,
-                ),
-                row=i,
-                col=2,
-            )
-
-            delta_x = player_df["players_position.x"].diff()[1:]
-            delta_y = player_df["players_position.y"].diff()[1:]
-            angle_of_movement = [degrees(atan2(dy, dx)) for dx, dy in zip(delta_x, delta_y)]
-            fig.add_trace(
-                go.Scatter(
-                    x=player_df["tick"][1:],
-                    y=angle_of_movement,
-                    name=steam_id,
-                    marker_color=colors[i - 1],
-                    showlegend=False,
-                ),
-                row=i,
-                col=3,
-            )
-
-        fig.update_layout(title="View Angle Delta, Pitch Angle Delta and Angle of Movement over Time for Each Player")
-        fig.update_xaxes(title="Time", row=len(players))
-        fig.show()
+        combined = pd.concat(event_dataframes[:500])
+        return combined
 
     def __str__(self) -> str:
         return f"{self.demo_file} with {self.num_players} players and duration of {self.duration}"
