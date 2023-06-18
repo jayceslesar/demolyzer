@@ -133,7 +133,7 @@ class DemoAnalyzer:
                 event_dataframes.append(event_df)
                 event_id += 1
 
-        combined = pd.concat(event_dataframes[:500])
+        combined = pd.concat(event_dataframes)
         return combined
 
     def __str__(self) -> str:
