@@ -1,5 +1,8 @@
 # Demolyzer
 
+# Project has moved!
+to https://github.com/MegaAntiCheat/demolyzer
+
 Demolyzer is a statistics and data library for analyzing TF2 demo files.
 
 ## Prerequisites
